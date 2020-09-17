@@ -1,10 +1,16 @@
 mod list;
 mod storage;
-pub(crate) use storage::Storage;
+use storage::Storage;
 mod subscriber;
 pub use subscriber::FastSubscriber;
 mod events;
-pub(crate) use events::{log_event, RawEvent};
+use events::{extract_spans, log_event, RawEvent};
+mod spans;
+use spans::Span;
+mod graph;
+use graph::Graph;
+mod svg;
+pub use svg::svg;
 
 #[cfg(test)]
 mod tests {

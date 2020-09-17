@@ -1,6 +1,7 @@
 //! Events and the places they are stored into.
-use super::Storage;
+use super::{Span, Storage};
 use lazy_static::lazy_static;
+use std::collections::HashMap;
 use std::collections::LinkedList;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -26,4 +27,37 @@ thread_local! {
 
 pub(super) fn log_event(event: RawEvent) {
     THREAD_LOGS.with(|logs| logs.push(event))
+}
+
+pub(super) fn extract_spans() -> HashMap<u64, Span> {
+    let mut spans: HashMap<u64, Span> = HashMap::new();
+    for (thread, log) in LOGS.lock().unwrap().iter().enumerate() {
+        for event in log.iter() {
+            match event {
+                RawEvent::NewSpan(id, name, parent) => {
+                    let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
+                    span.name = name;
+                    span.parent = if *parent == 0 { None } else { Some(*parent) };
+                    span.creation_thread = thread;
+                }
+                RawEvent::Enter(id, time) => {
+                    let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
+                    span.start = *time;
+                    if span.end == 0 {
+                        span.end = span.start
+                    }
+                    assert!(span.end >= span.start);
+                    span.execution_thread = thread;
+                }
+                RawEvent::Exit(id, time) => {
+                    let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
+                    span.end = *time;
+                    assert_eq!(span.execution_thread, thread);
+                }
+                _ => unimplemented!(),
+            }
+        }
+        log.reset();
+    }
+    spans
 }
