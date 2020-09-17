@@ -32,7 +32,6 @@ impl<T: 'static> AtomicLinkedList<T> {
             self.head
                 .swap(head_node.next.load(Ordering::SeqCst), Ordering::SeqCst);
             let element = head_node.element;
-            unsafe { head_node_pointer.drop_in_place() };
             Some(element)
         }
     }

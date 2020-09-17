@@ -1,6 +1,7 @@
 mod list;
 mod storage;
 mod subscriber;
+pub use subscriber::FastSubscriber;
 
 #[cfg(test)]
 mod tests {
