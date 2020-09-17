@@ -8,9 +8,10 @@ use events::{extract_spans, log_event, RawEvent};
 mod spans;
 use spans::Span;
 mod graph;
-use graph::Graph;
+use graph::{Graph, Node, Task};
 mod svg;
 pub use svg::svg;
+use svg::{SVG_HEIGHT, SVG_WIDTH};
 
 #[cfg(test)]
 mod tests {
