@@ -11,7 +11,7 @@ pub(super) struct Task {
 
 pub(super) struct Node {
     pub(super) children: Either<Vec<Node>, Task>,
-    is_parallel: bool,
+    pub(super) is_parallel: bool,
     size: [u128; 2],
     pub(super) scaled_size: [f64; 2],
     pub(super) position: [f64; 2],
@@ -56,10 +56,10 @@ impl Node {
             position: [0.0; 2],
         }
     }
-    fn width(&self) -> f64 {
+    pub(super) fn width(&self) -> f64 {
         self.scaled_size[0]
     }
-    fn height(&self) -> f64 {
+    pub(super) fn height(&self) -> f64 {
         self.scaled_size[1]
     }
     fn scale_size(&mut self, x_scale: f64, y_scale: f64) {
@@ -138,22 +138,22 @@ fn build_graph(
     children: &HashMap<u64, Vec<u64>>,
     spans: &HashMap<u64, Span>,
 ) -> Node {
-    let subgraphs = children.get(root_id).into_iter().flat_map(|my_children| {
-        my_children
-            .iter()
-            .map(|child_id| build_graph(child_id, children, spans))
-    });
+    let subgraphs = children
+        .get(root_id)
+        .into_iter()
+        .flatten()
+        .map(|child_id| build_graph(child_id, children, spans));
     if spans[root_id].name == "parallel" {
         // parallel display
         Node::new_from_children(subgraphs, true)
     } else {
         // sequential display
         // we interleave "fake" tasks between the real children
-        let times = children.get(root_id).into_iter().flat_map(|my_children| {
-            my_children
-                .iter()
-                .map(|child_id| (spans[child_id].start, spans[child_id].end))
-        });
+        let times = children
+            .get(root_id)
+            .into_iter()
+            .flatten()
+            .map(|child_id| (spans[child_id].start, spans[child_id].end));
         let root_span = &spans[root_id];
         let all_times = std::iter::once((0, root_span.start))
             .chain(times)
