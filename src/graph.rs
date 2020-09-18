@@ -96,13 +96,19 @@ impl Node {
 
 pub(super) struct Graph {
     pub(super) root: Node,
+    pub(super) start: u128,
+    pub(super) end: u128,
 }
 
 impl Graph {
     pub(super) fn new(spans: &HashMap<u64, Span>) -> Graph {
         let mut roots = Vec::new();
         let mut children = HashMap::new();
+        let mut start = u128::MAX;
+        let mut end = 0;
         for (span_id, span) in spans {
+            start = start.min(span.start);
+            end = end.max(span.end);
             if let Some(parent) = span.parent {
                 children
                     .entry(parent)
@@ -122,6 +128,8 @@ impl Graph {
         assert_eq!(spans[root_id].name, "main_task");
         let mut graph = Graph {
             root: build_graph(root_id, &children, spans),
+            start,
+            end,
         };
         // re-scale sizes of root node
         let x_scale = graph.root.size[0] as f64 / SVG_WIDTH as f64;
