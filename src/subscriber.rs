@@ -4,8 +4,8 @@ use std::sync::atomic::AtomicU64;
 use tracing::event::Event;
 use tracing::span::{Attributes, Record};
 use tracing::subscriber::Subscriber;
+use tracing::Id;
 use tracing::Metadata;
-use tracing::{span, Id, Level, Span};
 
 lazy_static! {
     static ref START: std::time::Instant = std::time::Instant::now();
@@ -25,13 +25,6 @@ impl FastSubscriber {
             next_task_id: AtomicU64::new(1),
         }
     }
-}
-
-lazy_static! {
-    /// There is a problem with `Current` it requires a metadata
-    /// which we do not store (would require a shared hash table).
-    /// We need to feed him a fake one but it is not possible to build one.
-    static ref FAKE_SPAN: Span = span!(Level::TRACE, "fake");
 }
 
 impl Subscriber for FastSubscriber {
