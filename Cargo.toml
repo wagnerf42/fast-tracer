@@ -12,3 +12,4 @@ tracing-core="0.1.14"
 lazy_static="*"
 either="*"
 itertools="*"
+rayon = { git = "https://github.com/wagnerf42/rayon", branch = "tracing" }
