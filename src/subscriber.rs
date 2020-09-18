@@ -59,13 +59,13 @@ impl Subscriber for FastSubscriber {
         log_event(RawEvent::NewSpan(new_id, name, parent));
         Id::from_u64(new_id)
     }
-    fn record(&self, span: &Id, values: &Record) {
+    fn record(&self, _span: &Id, _values: &Record) {
         unimplemented!()
     }
-    fn record_follows_from(&self, span: &Id, follows: &Id) {
+    fn record_follows_from(&self, _span: &Id, _follows: &Id) {
         unimplemented!()
     }
-    fn event(&self, event: &Event) {
+    fn event(&self, _event: &Event) {
         unimplemented!()
     }
     fn current_span(&self) -> Current {

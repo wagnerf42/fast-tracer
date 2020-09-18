@@ -25,29 +25,15 @@ impl<T> Block<T> {
         }
     }
 
-    fn last<'a>(&'a self) -> Option<&'a T> {
-        self.data.last()
-    }
-
     /// Add given element to block.
     fn push(&mut self, element: T) {
         debug_assert!(self.data.len() != BLOCK_SIZE);
         self.data.push(element)
     }
 
-    /// remove last element from block.
-    fn pop(&mut self) -> Option<T> {
-        self.data.pop()
-    }
-
     /// Is there some space left.
     fn is_full(&self) -> bool {
         self.data.len() == BLOCK_SIZE
-    }
-
-    /// Do we contain any element ?
-    fn is_empty(&self) -> bool {
-        self.data.is_empty()
     }
 
     /// Iterator on all elements.
@@ -89,22 +75,6 @@ impl<T: 'static> Storage<T> {
             self.data.push_front(Block::new());
         }
         self.data.front_mut().unwrap().push(element)
-    }
-    pub(crate) fn last(&self) -> Option<&T> {
-        self.data.front().and_then(|v| v.last())
-    }
-    /// Remove last-added element from storage space.
-    pub(crate) fn pop(&self) -> Option<T> {
-        if self.data.is_empty() {
-            None
-        } else {
-            let first_block = self.data.front_mut().unwrap();
-            let element = first_block.pop();
-            if first_block.is_empty() {
-                self.data.pop_front();
-            }
-            element
-        }
     }
     pub(super) fn reset(&self) {
         self.data.reset();

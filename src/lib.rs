@@ -8,7 +8,7 @@ use events::{extract_spans, log_event, RawEvent};
 mod spans;
 use spans::Span;
 mod graph;
-use graph::{Graph, Node, Task};
+use graph::{Graph, Node};
 mod svg;
 pub use svg::svg;
 use svg::{SVG_HEIGHT, SVG_WIDTH};

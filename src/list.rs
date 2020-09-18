@@ -20,21 +20,6 @@ impl<T: 'static> AtomicLinkedList<T> {
             head: AtomicPtr::new(null_mut()),
         }
     }
-    pub(super) fn is_empty(&self) -> bool {
-        self.head.load(Ordering::SeqCst).is_null()
-    }
-    pub(super) fn pop_front(&self) -> Option<T> {
-        if self.is_empty() {
-            None
-        } else {
-            let head_node_pointer = self.head.load(Ordering::SeqCst);
-            let head_node = unsafe { head_node_pointer.read() };
-            self.head
-                .swap(head_node.next.load(Ordering::SeqCst), Ordering::SeqCst);
-            let element = head_node.element;
-            Some(element)
-        }
-    }
     pub(super) fn reset(&self) {
         let mut node_pointer = self.head.swap(null_mut(), Ordering::SeqCst);
         while let Some(node) = unsafe { node_pointer.as_ref() } {
