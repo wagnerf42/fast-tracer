@@ -1,6 +1,7 @@
 use super::Node;
 use super::{extract_spans, Graph};
 use either::Either;
+use itertools::Itertools;
 use std::io::Write;
 use tracing::{span, Level};
 
@@ -29,7 +30,8 @@ impl Graph {
             SVG_WIDTH, SVG_HEIGHT
         )?;
         self.root.write_tasks_svg(&mut svg_file)?;
-        self.root.write_edges_svg(&mut svg_file)?;
+        self.root
+            .write_edges_svg(&mut svg_file, &Vec::new(), &Vec::new())?;
         writeln!(&mut svg_file, "</svg>")?;
         Ok(())
     }
@@ -45,15 +47,46 @@ impl Node {
                 writer,
                 "<rect width='{}' height='{}' x='{}' y='{}' style='fill:{}'/>",
                 self.scaled_size[0],
-                self.scaled_size[1],
+                self.scaled_size[1] * 0.5,
                 self.position[0],
-                self.position[1],
+                self.position[1] + self.height() * 0.25,
                 COLORS[task.thread % COLORS.len()]
             ),
         }?;
         Ok(())
     }
-    fn write_edges_svg<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+    fn write_edges_svg<W: Write>(
+        &self,
+        writer: &mut W,
+        entry_points: &[(f64, f64)],
+        exit_points: &[(f64, f64)],
+    ) -> std::io::Result<()> {
+        match &self.children {
+            Either::Left(children) => {
+                if self.is_parallel {
+                    children.iter().try_for_each(|child| {
+                        child.write_edges_svg(writer, entry_points, exit_points)
+                    })?
+                } else {
+                    entry_points
+                        .iter()
+                        .cartesian_product(&children.first().unwrap().entry_points())
+                        .chain(
+                            children
+                                .last()
+                                .unwrap()
+                                .exit_points()
+                                .iter()
+                                .cartesian_product(exit_points),
+                        )
+                        .try_for_each(|(start, end)| write_edge_svg(writer, start, end))?;
+                    children.iter().tuple_windows().try_for_each(|(a, b, c)| {
+                        b.write_edges_svg(writer, &a.exit_points(), &c.entry_points())
+                    })?
+                }
+            }
+            _ => (),
+        }
         Ok(())
     }
     // TODO: good exercise to write an iterator instead
@@ -69,7 +102,10 @@ impl Node {
                     children.first().unwrap().entry_points()
                 }
             }
-            Either::Right(_) => vec![(self.position[0] + self.width() / 2.0, self.position[1])],
+            Either::Right(_) => vec![(
+                self.position[0] + self.width() / 2.0,
+                self.position[1] + self.height() * 0.25,
+            )],
         }
     }
     fn exit_points(&self) -> Vec<(f64, f64)> {
@@ -86,8 +122,20 @@ impl Node {
             }
             Either::Right(_) => vec![(
                 self.position[0] + self.width() / 2.0,
-                self.position[1] + self.height(),
+                self.position[1] + self.height() * 0.75,
             )],
         }
     }
+}
+
+fn write_edge_svg<W: Write>(
+    writer: &mut W,
+    entry_point: &(f64, f64),
+    exit_point: &(f64, f64),
+) -> std::io::Result<()> {
+    writeln!(
+        writer,
+        "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='black' stroke-width='3'/>",
+        entry_point.0, entry_point.1, exit_point.0, exit_point.1
+    )
 }
