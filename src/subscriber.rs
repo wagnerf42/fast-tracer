@@ -56,3 +56,9 @@ impl Subscriber for FastSubscriber {
         log_event(RawEvent::Exit(span.into_u64(), now()));
     }
 }
+
+pub fn initialize_logger() {
+    let subscriber: FastSubscriber = FastSubscriber::new();
+    tracing::subscriber::set_global_default(subscriber)
+        .expect("another subscriber is already registered");
+}

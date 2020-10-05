@@ -1,3 +1,4 @@
+use super::FastSubscriber;
 use super::Node;
 use super::{extract_spans, reset_events, Graph};
 use either::Either;
@@ -13,6 +14,8 @@ const COLORS: [&str; 7] = [
 ];
 
 pub fn svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(path: P, op: F) -> std::io::Result<R> {
+    let subscriber: FastSubscriber = FastSubscriber::new();
+    tracing::subscriber::set_global_default(subscriber).err();
     reset_events();
     let span = span!(Level::TRACE, "main_task");
     let r = {
