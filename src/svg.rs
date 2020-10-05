@@ -1,5 +1,5 @@
 use super::Node;
-use super::{extract_spans, Graph};
+use super::{extract_spans, reset_events, Graph};
 use either::Either;
 use itertools::Itertools;
 use std::io::Write;
@@ -13,6 +13,7 @@ const COLORS: [&str; 7] = [
 ];
 
 pub fn svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(path: P, op: F) -> std::io::Result<R> {
+    reset_events();
     let span = span!(Level::TRACE, "main_task");
     let r = {
         let _enter = span.enter();

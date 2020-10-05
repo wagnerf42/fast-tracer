@@ -4,7 +4,7 @@ use storage::Storage;
 mod subscriber;
 pub use subscriber::FastSubscriber;
 mod events;
-use events::{extract_spans, log_event, RawEvent};
+use events::{extract_spans, log_event, reset_events, RawEvent};
 mod spans;
 use spans::Span;
 mod graph;

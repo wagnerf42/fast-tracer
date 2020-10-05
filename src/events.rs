@@ -25,6 +25,12 @@ thread_local! {
             };
 }
 
+pub(super) fn reset_events() {
+    for log in LOGS.lock().unwrap().iter() {
+        log.reset()
+    }
+}
+
 pub(super) fn log_event(event: RawEvent) {
     THREAD_LOGS.with(|logs| logs.push(event))
 }
