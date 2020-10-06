@@ -102,7 +102,7 @@ fn write_task_hover<W: Write>(
         "start {} end {}\nduration {}",
         task.start,
         task.end,
-        task.end - task.start
+        time_string(task.end - task.start)
     );
     writeln!(writer, "<g id=\"tip_{}_{}\">", random_id, task_id)?;
     let x = SVG_WIDTH - 400;
@@ -244,4 +244,15 @@ fn write_edge_svg<W: Write>(
         "<line x1='{}' y1='{}' x2='{}' y2='{}' stroke='black' stroke-width='3'/>",
         entry_point.0, entry_point.1, exit_point.0, exit_point.1
     )
+}
+
+/// Convert nano seconds to human readable string.
+fn time_string(nano: u128) -> String {
+    match nano {
+        n if n < 1_000 => format!("{}ns", n),
+        n if n < 1_000_000 => format!("{:.2}us", ((n / 1000) as f64)),
+        n if n < 1_000_000_000 => format!("{:.2}ms", ((n / 1_000_000) as f64)),
+        n if n < 60_000_000_000 => format!("{:.2}s", ((n / 1_000_000_000) as f64)),
+        n => format!("{}m{}s", n / 60_000_000_000, n % 60_000_000_000),
+    }
 }
