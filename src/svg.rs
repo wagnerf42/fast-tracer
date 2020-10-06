@@ -38,30 +38,115 @@ impl Graph {
         )?;
         // let's animate for 30 seconds
         let time_dilation = 30_000.0 / (self.end - self.start) as f64;
-        self.root.write_tasks_svg(&mut svg_file, time_dilation)?;
+        let random_id = rand::random(); // so we can include several logs in the same webpage
         self.root
             .write_edges_svg(&mut svg_file, &Vec::new(), &Vec::new())?;
+        let mut tasks_number: usize = 0;
+        self.root
+            .write_tasks_svg(&mut svg_file, time_dilation, random_id, &mut tasks_number)?;
+        write_javascript_code(&mut svg_file, random_id)?;
         writeln!(&mut svg_file, "</svg>")?;
         Ok(())
     }
 }
 
+fn write_javascript_code<W: Write>(writer: &mut W, random_id: u64) -> std::io::Result<()> {
+    // this part will allow to get more info on tasks by hovering over them
+    writeln!(
+        writer,
+        "
+   <style>
+      .task-highlight {{
+        fill: #ec008c;
+        opacity: 1;
+      }}
+    </style>
+  <script><![CDATA[
+
+    displayTips();
+
+    function displayTips() {{
+        let tasks = document.getElementsByClassName('task{id}');
+        for (let i = 0; i < tasks.length ; i++) {{
+          let task = tasks[i];
+          let tip_id = task.id;
+          let tip = document.getElementById('tip_{id}_'+tip_id);
+          tip.style.display='none';
+          tasks[i].tip = tip;
+          tasks[i].addEventListener('mouseover', mouseOverEffect);
+          tasks[i].addEventListener('mouseout', mouseOutEffect);
+        }}
+    }}
+
+    function mouseOverEffect() {{
+      this.classList.add(\"task-highlight\");
+      this.tip.style.display='block';
+    }}
+
+    function mouseOutEffect() {{
+      this.classList.remove(\"task-highlight\");
+      this.tip.style.display='none';
+    }}
+  ]]></script>",
+        id = random_id
+    )
+}
+
+fn write_task_hover<W: Write>(
+    writer: &mut W,
+    random_id: u64,
+    task_id: usize,
+    task: &super::graph::Task,
+) -> std::io::Result<()> {
+    let label = format!(
+        "start {} end {}\nduration {}",
+        task.start,
+        task.end,
+        task.end - task.start
+    );
+    writeln!(writer, "<g id=\"tip_{}_{}\">", random_id, task_id)?;
+    let x = SVG_WIDTH - 400;
+    let height = label.lines().count() as u32 * 20;
+    let mut y = SVG_HEIGHT as u32 - height - 40;
+    writeln!(
+        writer,
+        "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
+        x,
+        y,
+        height + 10
+    )?;
+    for line in label.lines() {
+        y += 20;
+        writeln!(writer, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5, y, line)?;
+    }
+    writeln!(writer, "</g>")
+}
+
 impl Node {
-    fn write_tasks_svg<W: Write>(&self, writer: &mut W, time_dilation: f64) -> std::io::Result<()> {
+    fn write_tasks_svg<W: Write>(
+        &self,
+        writer: &mut W,
+        time_dilation: f64,
+        random_id: u64,
+        tasks_number: &mut usize,
+    ) -> std::io::Result<()> {
         match &self.children {
-            Either::Left(children) => children
-                .iter()
-                .try_for_each(|child| child.write_tasks_svg(writer, time_dilation)),
-            Either::Right(task) => writeln!(
+            Either::Left(children) => children.iter().try_for_each(|child| {
+                child.write_tasks_svg(writer, time_dilation, random_id, tasks_number)
+            })?,
+            Either::Right(task) => {
+                writeln!(
                 writer,
                 "<rect width='{}' height='{}' x='{}' y='{}' fill='black'/>
-<rect width='0' height='{}' x='{}' y='{}' fill='{}'>
+<rect class=\"task{}\" id=\"{}\" width='0' height='{}' x='{}' y='{}' fill='{}'>
 <animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}ms\" dur=\"{}ms\" fill=\"freeze\"/>
 </rect>",
                 self.scaled_size[0],
                 self.scaled_size[1] * 0.5,
                 self.position[0],
                 self.position[1] + self.height() * 0.25,
+                random_id,
+                *tasks_number,
                 self.scaled_size[1] * 0.5,
                 self.position[0],
                 self.position[1] + self.height() * 0.25,
@@ -69,8 +154,11 @@ impl Node {
                 self.scaled_size[0],
                 task.start as f64 * time_dilation,
                 (task.end-task.start) as f64 * time_dilation,
-            ),
-        }?;
+            )?;
+                write_task_hover(writer, random_id, *tasks_number, &task)?;
+                *tasks_number += 1;
+            }
+        };
         Ok(())
     }
     fn write_edges_svg<W: Write>(
