@@ -14,4 +14,5 @@ either="*"
 itertools="*"
 rand="*"
 # rayon = { path = "../rayon" }
+[dev-dependencies]
 rayon = { git = "https://github.com/wagnerf42/rayon", branch = "tracing" }
