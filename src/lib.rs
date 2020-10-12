@@ -14,5 +14,5 @@ use spans::Span;
 mod graph;
 use graph::{Graph, Node};
 mod svg;
-pub use svg::svg;
+pub use svg::{display_svg, svg};
 use svg::{SVG_HEIGHT, SVG_WIDTH};

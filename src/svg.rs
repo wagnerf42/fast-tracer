@@ -13,6 +13,16 @@ const COLORS: [&str; 7] = [
     "red", "blue", "green", "yellow", "purple", "brown", "orange",
 ];
 
+pub fn display_svg<R, F: FnOnce() -> R>(op: F) -> std::io::Result<R> {
+    let mut tmp = std::env::temp_dir();
+    let id = rand::random::<u64>();
+    tmp.push(id.to_string());
+    tmp.set_extension("svg");
+    let r = svg(&tmp, op)?;
+    std::process::Command::new("firefox").arg(tmp).status()?;
+    Ok(r)
+}
+
 pub fn svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(path: P, op: F) -> std::io::Result<R> {
     let subscriber: FastSubscriber = FastSubscriber::new();
     tracing::subscriber::set_global_default(subscriber).err();
