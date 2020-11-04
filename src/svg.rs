@@ -260,9 +260,13 @@ fn write_edge_svg<W: Write>(
 fn time_string(nano: u128) -> String {
     match nano {
         n if n < 1_000 => format!("{}ns", n),
-        n if n < 1_000_000 => format!("{:.2}us", ((n / 1000) as f64)),
-        n if n < 1_000_000_000 => format!("{:.2}ms", ((n / 1_000_000) as f64)),
-        n if n < 60_000_000_000 => format!("{:.2}s", ((n / 1_000_000_000) as f64)),
+        n if n < 1_000_000 => format!("{:.2}us", time_float(n, 1_000)),
+        n if n < 1_000_000_000 => format!("{:.2}ms", time_float(n, 1_000_000)),
+        n if n < 60_000_000_000 => format!("{:.2}s", time_float(n, 1_000_000_000)),
         n => format!("{}m{}s", n / 60_000_000_000, n % 60_000_000_000),
     }
+}
+
+fn time_float(time: u128, limit: u128) -> f64 {
+    (time / limit) as f64 + ((time % limit) * 100 / limit) as f64 / 100.0
 }
