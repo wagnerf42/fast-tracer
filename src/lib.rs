@@ -47,11 +47,12 @@ pub fn stats<R, F: FnOnce() -> R>(op: F) -> R {
         let sum = spans.iter().sum::<u128>();
         let average = sum / spans.len() as u128;
         println!(
-            "{}: {}ns avg ({} spans): {}%",
+            "{}: {}ns avg ({} spans): {}%, total: {}ns",
             name,
             average,
             spans.len(),
-            (sum as f64 / main_duration as f64) * 100.0
+            (sum as f64 / main_duration as f64) * 100.0,
+            sum
         );
     }
     r
