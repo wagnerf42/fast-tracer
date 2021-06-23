@@ -109,10 +109,11 @@ fn write_task_hover<W: Write>(
     task: &super::graph::Task,
 ) -> std::io::Result<()> {
     let label = format!(
-        "start {} end {}\nduration {}",
+        "start {} end {}\nduration {}\nlabel {}",
         task.start,
         task.end,
-        time_string(task.end - task.start)
+        time_string(task.end - task.start),
+        task.label
     );
     writeln!(writer, "<g id=\"tip_{}_{}\">", random_id, task_id)?;
     let x = SVG_WIDTH - 400;

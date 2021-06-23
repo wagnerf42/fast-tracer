@@ -7,6 +7,7 @@ pub(super) struct Task {
     pub(super) start: u128,
     pub(super) end: u128,
     pub(super) thread: usize,
+    pub(super) label: &'static str,
 }
 
 pub(super) struct Node {
@@ -173,6 +174,7 @@ fn build_graph(
                 start,
                 end,
                 thread: root_span.execution_thread,
+                label: spans[root_id].name,
             })
         });
         Node::new_from_children(tasks.interleave(subgraphs), false)
