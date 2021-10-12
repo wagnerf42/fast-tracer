@@ -120,9 +120,9 @@ impl Graph {
             }
         }
         // sort children by starting order
-        children
-            .values_mut()
-            .for_each(|children| children.sort_by_key(|child_id| spans[child_id].start));
+        children.values_mut().for_each(|children| {
+            children.sort_by_key(|child_id| (spans[child_id].name, spans[child_id].start));
+        });
 
         assert_eq!(roots.len(), 1); // TODO: for now
         let root_id = roots.first().unwrap();
