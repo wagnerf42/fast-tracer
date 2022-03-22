@@ -7,6 +7,7 @@ pub(super) struct Task {
     pub(super) start: u128,
     pub(super) end: u128,
     pub(super) thread: usize,
+    pub(super) label: &'static str,
 }
 
 pub(super) struct Node {
@@ -119,9 +120,9 @@ impl Graph {
             }
         }
         // sort children by starting order
-        children
-            .values_mut()
-            .for_each(|children| children.sort_by_key(|child_id| spans[child_id].start));
+        children.values_mut().for_each(|children| {
+            children.sort_by_key(|child_id| (spans[child_id].name, spans[child_id].start));
+        });
 
         assert_eq!(roots.len(), 1); // TODO: for now
         let root_id = roots.first().unwrap();
@@ -173,6 +174,7 @@ fn build_graph(
                 start,
                 end,
                 thread: root_span.execution_thread,
+                label: spans[root_id].name,
             })
         });
         Node::new_from_children(tasks.interleave(subgraphs), false)

@@ -38,6 +38,8 @@ pub(super) fn log_event(event: RawEvent) {
 pub(super) fn extract_spans() -> HashMap<u64, Span> {
     let mut spans: HashMap<u64, Span> = HashMap::new();
     let mut min_time = std::u128::MAX;
+    let mut entered_count = 0;
+    let mut exited_count = 0;
     for (thread, log) in LOGS.lock().unwrap().iter().enumerate() {
         let mut active_spans = Vec::new();
         for event in log.iter() {
@@ -53,6 +55,7 @@ pub(super) fn extract_spans() -> HashMap<u64, Span> {
                     span.creation_thread = thread;
                 }
                 RawEvent::Enter(id, time) => {
+                    entered_count += 1;
                     let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
                     span.start = *time;
                     if span.end == 0 {
@@ -64,6 +67,7 @@ pub(super) fn extract_spans() -> HashMap<u64, Span> {
                     min_time = min_time.min(*time);
                 }
                 RawEvent::Exit(id, time) => {
+                    exited_count += 1;
                     let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
                     span.end = *time;
                     assert_eq!(span.execution_thread, thread);
@@ -81,6 +85,8 @@ pub(super) fn extract_spans() -> HashMap<u64, Span> {
         }
         log.reset();
     }
+    assert_eq!(entered_count, exited_count);
+    assert_eq!(entered_count, spans.len());
     // now translate times
     spans.values_mut().for_each(|s| {
         s.start -= min_time;

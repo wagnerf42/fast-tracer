@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub(super) struct Span {
     pub(super) id: u64,
     pub(super) parent: Option<u64>,
