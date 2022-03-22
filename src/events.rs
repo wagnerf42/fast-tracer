@@ -8,7 +8,7 @@ use std::sync::Mutex;
 
 pub(super) enum RawEvent {
     NewSpan(u64, &'static str, u64),
-    Record(u64, &'static str, u64),
+    StrField(u64, &'static str, &'static str),
     Enter(u64, u128),
     Exit(u64, u128),
 }
@@ -70,7 +70,13 @@ pub(super) fn extract_spans() -> HashMap<u64, Span> {
                     assert_eq!(active_spans.pop(), Some(*id));
                     min_time = min_time.min(*time);
                 }
-                _ => unimplemented!(),
+                RawEvent::StrField(id, field_name, value) => {
+                    if field_name == &"label" {
+                        spans.get_mut(id).unwrap().name = value
+                    } else {
+                        eprintln!("discarded field : {}", field_name)
+                    }
+                }
             }
         }
         log.reset();
