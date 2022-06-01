@@ -38,17 +38,20 @@ pub(super) fn log_event(event: RawEvent) {
 pub(super) fn extract_spans() -> HashMap<u64, Span> {
     let mut spans: HashMap<u64, Span> = HashMap::new();
     let mut min_time = std::u128::MAX;
+    let mut max_time = std::u128::MIN;
     let mut entered_count = 0;
     let mut exited_count = 0;
+    let mut all_active_spans = Vec::new();
+
     for (thread, log) in LOGS.lock().unwrap().iter().enumerate() {
-        let mut active_spans = Vec::new();
+        let mut thread_active_spans = Vec::new();
         for event in log.iter() {
             match event {
                 RawEvent::NewSpan(id, name, parent) => {
                     let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
                     span.name = name;
                     span.parent = if *parent == 0 {
-                        active_spans.last().cloned()
+                        thread_active_spans.last().cloned()
                     } else {
                         Some(*parent)
                     };
@@ -58,21 +61,19 @@ pub(super) fn extract_spans() -> HashMap<u64, Span> {
                     entered_count += 1;
                     let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
                     span.start = *time;
-                    if span.end == 0 {
-                        span.end = span.start
-                    }
-                    assert!(span.end >= span.start);
                     span.execution_thread = thread;
-                    active_spans.push(*id);
+                    thread_active_spans.push(*id);
                     min_time = min_time.min(*time);
+                    max_time = max_time.max(*time);
                 }
                 RawEvent::Exit(id, time) => {
                     exited_count += 1;
                     let span = spans.entry(*id).or_insert_with(|| Span::new(*id));
                     span.end = *time;
                     assert_eq!(span.execution_thread, thread);
-                    assert_eq!(active_spans.pop(), Some(*id));
+                    assert_eq!(thread_active_spans.pop(), Some(*id));
                     min_time = min_time.min(*time);
+                    max_time = max_time.max(*time);
                 }
                 RawEvent::StrField(id, field_name, value) => {
                     if field_name == &"label" {
@@ -83,9 +84,26 @@ pub(super) fn extract_spans() -> HashMap<u64, Span> {
                 }
             }
         }
+
+        all_active_spans.append(&mut thread_active_spans);
+
         log.reset();
     }
-    assert_eq!(entered_count, exited_count);
+
+    let unfinished_spans = all_active_spans.into_iter().fold(0, |count, id| {
+        let span = spans
+            .get_mut(&id)
+            .expect("Span should be in the hashmap already.");
+
+        if span.end == 0 {
+            span.end = max_time;
+            count + 1
+        } else {
+            count
+        }
+    });
+
+    assert_eq!(entered_count, exited_count + unfinished_spans);
     assert_eq!(entered_count, spans.len());
     // now translate times
     spans.values_mut().for_each(|s| {
