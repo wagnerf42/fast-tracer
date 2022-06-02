@@ -1,8 +1,12 @@
+use crate::spans::Span;
+
 use super::FastSubscriber;
 use super::Node;
 use super::{extract_spans, reset_events, Graph};
 use either::Either;
 use itertools::Itertools;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::io::Write;
 use tracing::{span, Level};
 
@@ -36,6 +40,148 @@ pub fn svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(path: P, op: F) -> st
     let graph = Graph::new(&spans);
     graph.save_svg(path)?;
     Ok(r)
+}
+
+/// Saves an svg displaying the gantt diagram
+/// of the recorded execution of `op`.
+pub fn gantt_svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(
+    path: P,
+    op: F,
+) -> std::io::Result<R> {
+    let subscriber: FastSubscriber = FastSubscriber::new();
+    tracing::subscriber::set_global_default(subscriber).err();
+    reset_events();
+    let span = span!(Level::TRACE, "main_task");
+    let r = {
+        let _enter = span.enter();
+        op()
+    };
+    let spans = extract_spans();
+    let gantt = Gantt::new(&spans);
+    gantt.save_svg(&path)?;
+    Ok(r)
+}
+
+#[derive(Debug)]
+pub(super) struct Gantt<'a> {
+    pub(super) start: u128,
+    pub(super) end: u128,
+    pub(super) min_exec_time: u128,
+    pub(super) spans: &'a HashMap<u64, Span>,
+    pub(super) span_colors: HashMap<&'static str, usize>,
+    pub(super) nb_threads: u32,
+}
+
+impl<'a> Gantt<'a> {
+    fn new(spans: &'a HashMap<u64, Span>) -> Self {
+        let mut nb_threads = 0;
+        let mut start = u128::MAX;
+        let mut end: u128 = 0;
+        let mut min_exec_time = u128::MAX;
+        let mut span_colors: HashMap<&'static str, usize> = HashMap::new();
+        let mut colors = (0..7).cycle();
+        for (_, span) in spans {
+            nb_threads = nb_threads.max(1 + span.execution_thread as u32);
+            start = start.min(span.start);
+            end = end.max(span.end);
+            min_exec_time = min_exec_time.min(span.end - span.start);
+            span_colors
+                .entry(span.name)
+                .or_insert_with(|| colors.next().unwrap());
+        }
+        Gantt {
+            start,
+            end,
+            min_exec_time,
+            spans: &spans,
+            span_colors,
+            nb_threads,
+        }
+    }
+
+    fn save_svg<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
+        let mut svg_file = std::fs::File::create(path)?;
+        let random_id = rand::random::<u64>();
+        writeln!(
+            &mut svg_file,
+            "<svg version='1.1' viewBox='0 0 {} {}' xmlns='http://www.w3.org/2000/svg'>",
+            SVG_WIDTH, SVG_HEIGHT
+        )?;
+        self.write_tasks(&mut svg_file, random_id)?;
+        writeln!(&mut svg_file, "</svg>")?;
+        Ok(())
+    }
+
+    fn write_tasks<W: Write>(&self, writer: &mut W, random_id: u64) -> std::io::Result<()> {
+        let mut seen: HashSet<u64> = HashSet::new();
+        for (_, span) in self.spans {
+            self.write_task(writer, span, &mut seen, random_id)?;
+        }
+        for (span_id, span) in self.spans {
+            self.write_task_hover(writer, random_id, &span_id, span)?;
+        }
+        write_javascript_code(writer, random_id)?;
+        Ok(())
+    }
+
+    fn write_task<W: Write>(
+        &self,
+        writer: &mut W,
+        span: &Span,
+        seen: &mut HashSet<u64>,
+        random_id: u64,
+    ) -> std::io::Result<()> {
+        if !seen.contains(&span.id) {
+            if let Some(father) = span.parent {
+                self.write_task(writer, self.spans.get(&father).unwrap(), seen, random_id)?;
+            }
+            writeln!(
+                writer,
+                "<rect class='{}' id='{}' width='{}' height='{}' x='{}' y='{}' fill='{}'/>",
+                format!("task{}", random_id),
+                span.id,
+                ((span.end - span.start) * SVG_WIDTH) as f32 / (self.end - self.start) as f32,
+                SVG_HEIGHT as u32 / self.nb_threads,
+                ((span.start - self.start) * SVG_WIDTH) as f32 / (self.end - self.start) as f32,
+                SVG_HEIGHT as f32 / (self.nb_threads as f32) * span.execution_thread as f32,
+                COLORS[*self.span_colors.get(span.name).unwrap()],
+            )?;
+            seen.insert(span.id);
+        }
+        Ok(())
+    }
+
+    fn write_task_hover<W: Write>(
+        &self,
+        writer: &mut W,
+        random_id: u64,
+        span_id: &u64,
+        span: &Span,
+    ) -> std::io::Result<()> {
+        let label = format!(
+            "start {} end {}\nduration {}\nlabel {}",
+            span.start,
+            span.end,
+            time_string(span.end - span.start),
+            span.name
+        );
+        writeln!(writer, "<g id=\"tip_{}_{}\">", random_id, span_id)?;
+        let x = SVG_WIDTH - 400;
+        let height = label.lines().count() as u32 * 20;
+        let mut y = SVG_HEIGHT as u32 - height - 40;
+        writeln!(
+            writer,
+            "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
+            x,
+            y,
+            height + 10
+        )?;
+        for line in label.lines() {
+            y += 20;
+            writeln!(writer, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5, y, line)?;
+        }
+        writeln!(writer, "</g>")
+    }
 }
 
 impl Graph {

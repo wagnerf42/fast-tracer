@@ -16,7 +16,7 @@ use graph::{Graph, Node};
 mod svg;
 use itertools::Itertools;
 use std::collections::HashMap;
-pub use svg::{display_svg, svg};
+pub use svg::{display_svg, gantt_svg, svg};
 use svg::{SVG_HEIGHT, SVG_WIDTH};
 use tracing::{span, Level};
 
