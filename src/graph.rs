@@ -135,7 +135,8 @@ impl Graph {
         assert_eq!(spans[root_id].name, "main_task");
         let root = build_graph(root_id, &children, spans);
         let x_scale = root.size[0] as f64 / SVG_WIDTH as f64;
-        let y_scale = root.size[1] as f64 / SVG_HEIGHT as f64;
+        // add some extra space at bottom to display threads idling
+        let y_scale = (root.size[1] + max_thread as u128) as f64 / SVG_HEIGHT as f64;
         let mut graph = Graph {
             root,
             start,
