@@ -3,6 +3,7 @@ use either::Either;
 use itertools::Itertools;
 use std::collections::HashMap;
 
+#[derive(Debug)]
 pub(super) struct Task {
     pub(super) start: u128,
     pub(super) end: u128,
@@ -99,6 +100,9 @@ pub(super) struct Graph {
     pub(super) root: Node,
     pub(super) start: u128,
     pub(super) end: u128,
+    pub(super) threads_number: usize,
+    pub(super) x_scale: f64,
+    pub(super) y_scale: f64,
 }
 
 impl Graph {
@@ -107,7 +111,9 @@ impl Graph {
         let mut children = HashMap::new();
         let mut start = u128::MAX;
         let mut end = 0;
+        let mut max_thread = 0;
         for (span_id, span) in spans {
+            max_thread = max_thread.max(span.execution_thread);
             start = start.min(span.start);
             end = end.max(span.end);
             if let Some(parent) = span.parent {
@@ -127,14 +133,18 @@ impl Graph {
         assert_eq!(roots.len(), 1); // TODO: for now
         let root_id = roots.first().unwrap();
         assert_eq!(spans[root_id].name, "main_task");
+        let root = build_graph(root_id, &children, spans);
+        let x_scale = root.size[0] as f64 / SVG_WIDTH as f64;
+        let y_scale = root.size[1] as f64 / SVG_HEIGHT as f64;
         let mut graph = Graph {
-            root: build_graph(root_id, &children, spans),
+            root,
             start,
             end,
+            threads_number: max_thread + 1,
+            x_scale,
+            y_scale,
         };
         // re-scale sizes of root node
-        let x_scale = graph.root.size[0] as f64 / SVG_WIDTH as f64;
-        let y_scale = graph.root.size[1] as f64 / SVG_HEIGHT as f64;
         graph.root.scale_size(x_scale, y_scale);
         // now, re-scale all node sizes and compute their positions
         graph.root.compute_positions(x_scale, y_scale);

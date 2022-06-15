@@ -1,8 +1,8 @@
 use crate::spans::Span;
 
 use super::FastSubscriber;
-use super::Node;
 use super::{extract_spans, reset_events, Graph};
+use super::{Node, Task};
 use either::Either;
 use itertools::Itertools;
 use std::collections::HashMap;
@@ -200,6 +200,7 @@ impl Graph {
         let mut tasks_number: usize = 0;
         self.root
             .write_tasks_svg(&mut svg_file, time_dilation, random_id, &mut tasks_number)?;
+        self.write_idle_gantt_diagram(&mut svg_file, time_dilation, random_id, &mut tasks_number)?;
         write_javascript_code(&mut svg_file, random_id)?;
         writeln!(&mut svg_file, "</svg>")?;
         Ok(())
@@ -279,7 +280,118 @@ fn write_task_hover<W: Write>(
     writeln!(writer, "</g>")
 }
 
+impl Graph {
+    fn write_idle_gantt_diagram<W: Write>(
+        &self,
+        writer: &mut W,
+        time_dilation: f64,
+        random_id: u64,
+        tasks_number: &mut usize,
+    ) -> std::io::Result<()> {
+        let mut tasks_per_threads: Vec<_> = std::iter::repeat_with(Vec::new)
+            .take(self.threads_number)
+            .collect();
+        for task in self.root.tasks() {
+            tasks_per_threads[task.thread].push(task);
+        }
+        for (thread, thread_tasks) in tasks_per_threads.iter_mut().enumerate() {
+            thread_tasks.sort_unstable_by_key(|t| t.start);
+            std::iter::once((0, self.start))
+                .chain(thread_tasks.iter().map(|t| (t.start, t.end)))
+                .chain(std::iter::once((
+                    thread_tasks.last().map(|t| t.end).unwrap_or_default(),
+                    self.end,
+                )))
+                .tuple_windows()
+                .filter_map(|((_, end), (start, _))| {
+                    if end == start {
+                        None
+                    } else {
+                        Some((end, start))
+                    }
+                })
+                .try_fold(0, |x, (idle_start, idle_end)| -> std::io::Result<u128> {
+                    let width = (idle_end - idle_start) as f64 / self.x_scale;
+                    let height = 1.0 / self.y_scale;
+                    let y = SVG_HEIGHT as f64 - thread as f64 / self.y_scale;
+                    write_task_svg(
+                        writer,
+                        time_dilation,
+                        random_id,
+                        thread,
+                        x as f64 / self.x_scale,
+                        y,
+                        width,
+                        height,
+                        idle_start,
+                        idle_end,
+                        *tasks_number,
+                    )?;
+
+                    let task = Task {
+                        start: idle_start,
+                        end: idle_end,
+                        thread,
+                        label: "idle",
+                    };
+                    write_task_hover(writer, random_id, *tasks_number, &task)?;
+                    *tasks_number += 1;
+                    Ok(x + (idle_end - idle_start))
+                })?;
+        }
+        Ok(())
+    }
+}
+
+fn write_task_svg<W: Write>(
+    writer: &mut W,
+    time_dilation: f64,
+    random_id: u64,
+    thread_id: usize,
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    start: u128,
+    end: u128,
+    tasks_number: usize,
+) -> std::io::Result<()> {
+    writeln!(
+                writer,
+                "<rect width='{}' height='{}' x='{}' y='{}' fill='black'/>
+<rect class=\"task{}\" id=\"{}\" width='0' height='{}' x='{}' y='{}' fill='{}'>
+<animate attributeType=\"XML\" attributeName=\"width\" from=\"0\" to=\"{}\" begin=\"{}ms\" dur=\"{}ms\" fill=\"freeze\"/>
+</rect>",
+                width,
+                height * 0.5,
+                x,
+                y + height * 0.25,
+                random_id,
+                tasks_number,
+                height * 0.5,
+                x,
+                y + height * 0.25,
+                COLORS[thread_id % COLORS.len()],
+                width,
+                start as f64 * time_dilation,
+                (end-start) as f64 * time_dilation,
+            )
+}
+
 impl Node {
+    fn tasks(&self) -> impl Iterator<Item = &Task> {
+        let mut stack = Vec::new();
+        stack.push(self);
+        std::iter::from_fn(move || {
+            while let Some(next_node) = stack.pop() {
+                match &next_node.children {
+                    Either::Left(children) => stack.extend(children),
+                    Either::Right(task) => return Some(task),
+                }
+            }
+            None
+        })
+    }
     fn write_tasks_svg<W: Write>(
         &self,
         writer: &mut W,
@@ -291,6 +403,7 @@ impl Node {
             Either::Left(children) => children.iter().try_for_each(|child| {
                 child.write_tasks_svg(writer, time_dilation, random_id, tasks_number)
             })?,
+            //TODO: call write_task_svg
             Either::Right(task) => {
                 writeln!(
                 writer,

@@ -12,7 +12,7 @@ use events::{extract_spans, log_event, reset_events, RawEvent};
 mod spans;
 use spans::Span;
 mod graph;
-use graph::{Graph, Node};
+use graph::{Graph, Node, Task};
 mod svg;
 use itertools::Itertools;
 use std::collections::HashMap;
