@@ -42,9 +42,9 @@ pub fn svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(path: P, op: F) -> st
     Ok(r)
 }
 
-/// Saves an svg displaying the gantt diagram
+/// Saves a perfetto json containg the gantt diagram
 /// of the recorded execution of `op`.
-pub fn gantt_svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(
+pub fn gantt_json<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(
     path: P,
     op: F,
 ) -> std::io::Result<R> {
@@ -58,18 +58,13 @@ pub fn gantt_svg<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(
     };
     let spans = extract_spans();
     let gantt = Gantt::new(&spans);
-    gantt.save_svg(&path)?;
+    gantt.save_json(&path)?;
     Ok(r)
 }
 
 #[derive(Debug)]
 pub(super) struct Gantt<'a> {
-    pub(super) start: u128,
-    pub(super) end: u128,
-    pub(super) min_exec_time: u128,
     pub(super) spans: &'a HashMap<u64, Span>,
-    pub(super) span_colors: HashMap<&'static str, usize>,
-    pub(super) nb_threads: u32,
 }
 
 impl<'a> Gantt<'a> {
@@ -89,26 +84,15 @@ impl<'a> Gantt<'a> {
                 .entry(span.name)
                 .or_insert_with(|| colors.next().unwrap());
         }
-        Gantt {
-            start,
-            end,
-            min_exec_time,
-            spans: &spans,
-            span_colors,
-            nb_threads,
-        }
+        Gantt { spans: &spans }
     }
 
-    fn save_svg<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
-        let mut svg_file = std::fs::File::create(path)?;
+    fn save_json<P: AsRef<std::path::Path>>(&self, path: P) -> std::io::Result<()> {
+        let mut json_file = std::fs::File::create(path)?;
         let random_id = rand::random::<u64>();
-        writeln!(
-            &mut svg_file,
-            "<svg version='1.1' viewBox='0 0 {} {}' xmlns='http://www.w3.org/2000/svg'>",
-            SVG_WIDTH, SVG_HEIGHT
-        )?;
-        self.write_tasks(&mut svg_file, random_id)?;
-        writeln!(&mut svg_file, "</svg>")?;
+        writeln!(&mut json_file, "[")?;
+        self.write_tasks(&mut json_file, random_id)?;
+        writeln!(&mut json_file, "]")?;
         Ok(())
     }
 
@@ -117,10 +101,6 @@ impl<'a> Gantt<'a> {
         for (_, span) in self.spans {
             self.write_task(writer, span, &mut seen, random_id)?;
         }
-        for (span_id, span) in self.spans {
-            self.write_task_hover(writer, random_id, &span_id, span)?;
-        }
-        write_javascript_code(writer, random_id)?;
         Ok(())
     }
 
@@ -135,52 +115,30 @@ impl<'a> Gantt<'a> {
             if let Some(father) = span.parent {
                 self.write_task(writer, self.spans.get(&father).unwrap(), seen, random_id)?;
             }
+
+            if span.name.eq("left") || span.name.eq("right") || span.name.eq("parallel") {
+                return Ok(());
+            }
+
             writeln!(
                 writer,
-                "<rect class='{}' id='{}' width='{}' height='{}' x='{}' y='{}' fill='{}'/>",
-                format!("task{}", random_id),
-                span.id,
-                ((span.end - span.start) * SVG_WIDTH) as f32 / (self.end - self.start) as f32,
-                SVG_HEIGHT as u32 / self.nb_threads,
-                ((span.start - self.start) * SVG_WIDTH) as f32 / (self.end - self.start) as f32,
-                SVG_HEIGHT as f32 / (self.nb_threads as f32) * span.execution_thread as f32,
-                COLORS[*self.span_colors.get(span.name).unwrap()],
+                "{{\"name\": \"{name}\",
+                \"cat\": \"{category}\", 
+                \"ph\": \"X\", 
+                \"pid\": {pid},
+                \"tid\": {tid},
+                \"ts\": {start},
+                \"dur\": {duration}}},",
+                name = span.name,
+                category = span.name,
+                pid = "1",
+                tid = span.execution_thread,
+                start = span.start / 1000,
+                duration = (span.end - span.start) / 1000,
             )?;
             seen.insert(span.id);
         }
         Ok(())
-    }
-
-    fn write_task_hover<W: Write>(
-        &self,
-        writer: &mut W,
-        random_id: u64,
-        span_id: &u64,
-        span: &Span,
-    ) -> std::io::Result<()> {
-        let label = format!(
-            "start {} end {}\nduration {}\nlabel {}",
-            span.start,
-            span.end,
-            time_string(span.end - span.start),
-            span.name
-        );
-        writeln!(writer, "<g id=\"tip_{}_{}\">", random_id, span_id)?;
-        let x = SVG_WIDTH - 400;
-        let height = label.lines().count() as u32 * 20;
-        let mut y = SVG_HEIGHT as u32 - height - 40;
-        writeln!(
-            writer,
-            "<rect x=\"{}\" y=\"{}\" width=\"300\" height=\"{}\" fill=\"white\" stroke=\"black\"/>",
-            x,
-            y,
-            height + 10
-        )?;
-        for line in label.lines() {
-            y += 20;
-            writeln!(writer, "<text x=\"{}\" y=\"{}\">{}</text>", x + 5, y, line)?;
-        }
-        writeln!(writer, "</g>")
     }
 }
 
