@@ -133,8 +133,8 @@ impl<'a> Gantt<'a> {
                 category = span.name,
                 pid = "1",
                 tid = span.execution_thread,
-                start = span.start / 1000,
-                duration = (span.end - span.start) / 1000,
+                start = span.start,
+                duration = span.end - span.start,
             )?;
             seen.insert(span.id);
         }
