@@ -22,7 +22,7 @@ thread_local! {
         let storage = Arc::new(Storage::new());
         LOGS.lock().unwrap().push_back(storage.clone());
         storage
-            };
+    };
 }
 
 pub(super) fn reset_events() {
