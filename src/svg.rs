@@ -50,7 +50,7 @@ pub fn gantt_json<P: AsRef<std::path::Path>, R, F: FnOnce() -> R>(
 ) -> std::io::Result<R> {
     let subscriber: FastSubscriber = FastSubscriber::new();
     tracing::subscriber::set_global_default(subscriber).err();
-    reset_events();
+    // reset_events();
     let span = span!(Level::TRACE, "main_task");
     let r = {
         let _enter = span.enter();

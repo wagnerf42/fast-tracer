@@ -87,7 +87,7 @@ pub(super) fn extract_spans() -> HashMap<u64, Span> {
 
         all_active_spans.append(&mut thread_active_spans);
 
-        log.reset();
+        // log.reset();
     }
 
     let unfinished_spans = all_active_spans.into_iter().fold(0, |count, id| {
