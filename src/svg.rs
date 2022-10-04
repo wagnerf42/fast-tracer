@@ -296,12 +296,9 @@ impl Graph {
         }
         for (thread, thread_tasks) in tasks_per_threads.iter_mut().enumerate() {
             thread_tasks.sort_unstable_by_key(|t| t.start);
-            std::iter::once((0, self.start))
+            std::iter::once((0, 0))
                 .chain(thread_tasks.iter().map(|t| (t.start, t.end)))
-                .chain(std::iter::once((
-                    thread_tasks.last().map(|t| t.end).unwrap_or_default(),
-                    self.end,
-                )))
+                .chain(std::iter::once((self.end, self.end)))
                 .tuple_windows()
                 .filter_map(|((_, end), (start, _))| {
                     if end == start {
