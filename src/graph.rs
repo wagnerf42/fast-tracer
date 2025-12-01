@@ -125,9 +125,14 @@ impl Graph {
                 roots.push(*span_id)
             }
         }
-        // sort children by starting order
-        children.values_mut().for_each(|children| {
-            children.sort_by_key(|child_id| (spans[child_id].name, spans[child_id].start));
+        children.iter_mut().for_each(|(father, children)| {
+            if spans[father].name == "parallel" {
+                // first left and second one is right
+                children.sort_by_key(|child_id| spans[child_id].name);
+            } else {
+                // sort children by starting order
+                children.sort_by_key(|child_id| spans[child_id].start);
+            }
         });
 
         assert_eq!(roots.len(), 1); // TODO: for now
